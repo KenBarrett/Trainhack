@@ -1,46 +1,33 @@
 import socket
-import pickle
-HEADERSIZE = 10
 
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.connect((socket.gethostname(), 1235))
+HEADER = 64
+PORT = 5050
+SERVER = socket.gethostbyname(socket.gethostname()) # can be changed to connected to diff devices
+FORMAT = 'utf-8'
+DISCONNECT_MESSAGE = "!DISCONNECT"
+ADDR = (SERVER,PORT)
 
-run = True
 
-while run:
-    print("Connection to train has been established!")
-    msg = input("enter a radio frequency: ")
-    msg = bytes(f'{len(msg):<{HEADERSIZE}}', "utf-8") + msg
-    s.send(msg)    
+client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+client.connect(ADDR)
 
 
 
+def send(msg):
+    message = msg.encode(FORMAT)
+    msg_length = len(message)
+    send_length = str(msg_length).encode(FORMAT)
+    send_length += b' ' * (HEADER - len(send_length)) #add passing to message to ensure it is a multiple of 64
+    client.send(send_length)
+    client.send(message)
+    print(client.recv(2048).decode(FORMAT))
 
-    '''
-while True: 
-    
-    full_msg = b''
-    new_msg = True  
 
-    while True:
-        msg = s.recv(16)
-        if  new_msg:
-            print(f"new message length: { msg[:HEADERSIZE]}")
-            msglen = int(msg[:HEADERSIZE])
-            new_msg = False
-        
-        full_msg += msg
-
-        if len(full_msg)-HEADERSIZE == msglen:
-            print("full msg recvd")
-            print(full_msg[HEADERSIZE:1])
-
-            d = pickle.loads(full_msg[HEADERSIZE:])
-            print(d)
-
-            new_msg = True
-            full_msg = b''
-    
-    print(full_msg)
-'''
-    
+connected = True
+while connected:
+    msg = input("Type in radio frequency to send or exit to disconnect: ")
+    if msg != "exit":
+        send(msg)
+    else:
+        connected = False
+        send(DISCONNECT_MESSAGE)

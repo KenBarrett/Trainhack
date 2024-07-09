@@ -1,64 +1,69 @@
 import socket
+import threading
 import time
-import pickle
+
+HEADER = 64
+PORT = 5050
+SERVER = socket.gethostbyname(socket.gethostname())
+ADDR = (SERVER, PORT)
+FORMAT = 'utf-8'
+DISCONNECT_MESSAGE = "!DISCONNECT"
+
+class myTrain:
+    starttime = 0
+    stopct = 0
+    stopped = False
+
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.bind(ADDR)
+
+#runs concurrently for each client
+def handle_client(conn, addr):
+    print(f"[NEW CONNECTION] {addr} connected.")
+    connected = True
+    train = myTrain()
+    while connected:
+        msg_length = conn.recv(HEADER).decode()
+        if msg_length: #if msg_length is not none
+            msg_length = int(msg_length)
+            msg = conn.recv(msg_length).decode(FORMAT)
+            if msg == DISCONNECT_MESSAGE:
+                connected = False
+
+            print(f"[{addr}] {msg}")
+            if inputAction(msg, conn, train) == False:
+                conn.send("Msg recieved".encode(FORMAT))
+    conn.close()
 
 
-HEADERSIZE = 10
+def inputAction(msg, conn, train):
+    print(train.stopct)
+    print(time.time() - train.starttime)
+    if float(msg) == 151.1 and train.stopct == 0:
+        train.starttime = time.time()
+        train.stopct = 1
+        return False
+    elif float(msg) == 151.1 and train.stopct == 1 and time.time() - train.starttime < 15:
+        train.stopct = 2
+        return False
+    elif float(msg) == 151.1 and train.stopct == 2  and   time.time() - train.starttime < 15:
+        conn.send("Train Stopped".encode(FORMAT))
+        return True
+    else: 
+        train.stopct = 0
+        return False
 
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.bind((socket.gethostname(), 1235))
-s.listen(5)
 
-connected = True
 
-while connected:
-    clientsocket, address = s.accept()
-    print(f"Connection from {address} has been established!")
-    full_msg = b''
-    new_msg = True  
 
+def start():
+    server.listen()
+    print("[LISTENING] Server is listening on {SERVER}")
     while True:
-        msg = s.recv(16)
-        if  new_msg:
-            print(f"new message length: { msg[:HEADERSIZE]}")
-            msglen = int(msg[:HEADERSIZE])
-            new_msg = False
+        conn, addr = server.accept()
+        thread = threading.Thread(target=handle_client, args=(conn, addr))
+        thread.start()
+        print(f"[ACTIVE CONNECTIONS] {threading.active_count() - 1}")
         
-        full_msg += msg
-
-        if len(full_msg)-HEADERSIZE == msglen:
-            print("full msg recvd")
-            print(full_msg[HEADERSIZE:1])
-
-            
-            #d = pickle.loads(full_msg[HEADERSIZE:])
-            #print(d)
-
-            new_msg = True
-            full_msg = b''
-    
-    print(full_msg)
-
-
-
-
-    '''
-while True:
-    clientsocket, address = s.accept()
-    print(f"Connection from {address} has been established!")
-
-    
-    d = {1: "Hey", 2: "There"}
-    msg = pickle.dumps(d)
-    #print(msg)
-
-    #msg = "Welcome to the server"
-    msg = bytes(f'{len(msg):<{HEADERSIZE}}', "utf-8") + msg
-
-    clientsocket.send(msg)
-    while True:
-        time.sleep(3)
-        msg = f"The time is! {time.time()}"
-        msg = f'{len(msg):<{HEADERSIZE}}'+ msg
-        clientsocket.send(bytes(msg, "utf-8"))
-''' 
+print("[STARTING] server is starting...")
+start()
